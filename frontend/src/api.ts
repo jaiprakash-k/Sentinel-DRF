@@ -30,8 +30,17 @@ export interface ReplayProcessResult {
 
 const api = {
   // Execute a new flow
-  executeFlow: async (title: string, description: string): Promise<FlowLog> => {
-    const res = await axios.post(`${API_BASE}/flows/execute`, { title, description });
+  executeFlow: async (title: string, description: string, file: File): Promise<FlowLog> => {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('file', file);
+
+    const res = await axios.post(`${API_BASE}/flows/execute`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return res.data;
   },
 

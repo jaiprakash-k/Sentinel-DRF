@@ -28,13 +28,43 @@ function ExecutePanel() {
   const { executing, executeFlow } = useStore();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    await executeFlow(title.trim(), description.trim());
-    setTitle('');
-    setDescription('');
+    if (!title.trim() || !file) return;
+    const success = await executeFlow(title.trim(), description.trim(), file);
+    if (success) {
+      setTitle('');
+      setDescription('');
+      setFile(null);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setFile(e.dataTransfer.files[0]);
+    }
   };
 
   return (
@@ -70,20 +100,38 @@ function ExecutePanel() {
           />
         </div>
 
-        <div className="dropzone" style={{ marginBottom: '2rem' }}>
-          <div className="dropzone__icon">📄</div>
+        <div 
+          className={`dropzone ${dragActive ? 'dropzone--active' : ''}`} 
+          style={{ marginBottom: '2rem', cursor: 'pointer' }}
+          onClick={() => document.getElementById('file-upload')?.click()}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <input
+            id="file-upload"
+            type="file"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+          <div className="dropzone__icon">{file ? '📂' : '📄'}</div>
           <div className="dropzone__text">
-            Drop context files or <span style={{ color: 'var(--accent-secondary)', fontWeight: 600 }}>browse</span>
+            {file ? (
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{file.name}</span>
+            ) : (
+              <>Drop context files or <span style={{ color: 'var(--accent-secondary)', fontWeight: 600 }}>browse</span></>
+            )}
           </div>
           <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.6 }}>
-            Files are stored deterministically for replay availability
+            {file ? `${(file.size / 1024).toFixed(1)} KB` : 'Files are stored deterministically for replay availability'}
           </p>
         </div>
 
         <button
           className="btn btn--primary btn--full"
           type="submit"
-          disabled={executing || !title.trim()}
+          disabled={executing || !title.trim() || !file}
         >
           {executing ? (
             <>

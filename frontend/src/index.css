@@ -213,7 +213,7 @@ p, .text-quiet {
   transition: all var(--transition-base);
 }
 
-.dropzone:hover {
+.dropzone:hover, .dropzone--active {
   border-color: var(--text-primary);
   background: #f1f5f9;
 }

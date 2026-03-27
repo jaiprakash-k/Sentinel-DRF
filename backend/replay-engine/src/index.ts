@@ -235,6 +235,11 @@ async function replayFlow(flowId: string): Promise<FlowLog | null> {
 const app = Fastify({ logger: true });
 
 app.register(cors, { origin: true });
+app.register(require('@fastify/multipart'), {
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 
 // Health check
 app.get('/health', async () => ({ status: 'ok', service: 'replay-engine' }));
@@ -242,21 +247,27 @@ app.get('/health', async () => ({ status: 'ok', service: 'replay-engine' }));
 // Execute a new flow (file upload + metadata)
 app.post('/flows/execute', async (request, reply) => {
   try {
-    const { title, description } = ExecuteFlowSchema.parse(request.body);
+    const data = await request.file();
+    if (!data) {
+      return reply.status(400).send({ error: 'No file uploaded' });
+    }
+
+    // data.fields contains the other form fields
+    const title = (data.fields.title as any)?.value;
+    const description = (data.fields.description as any)?.value || '';
+
+    if (!title) {
+      return reply.status(400).send({ error: 'Title is required' });
+    }
+
+    const fileBuffer = await data.toBuffer();
+    const fileName = data.filename;
     const flowId = uuidv4();
 
-    // For simplicity, generate a dummy file buffer when no file is attached
-    // In production, this would come from the multipart request
-    const fileBuffer = Buffer.from(`sentinel-file-${flowId}`);
-    const fileName = `file-${flowId}.dat`;
-
-    const log = await executeFlow(flowId, title, description || '', fileBuffer, fileName);
+    const log = await executeFlow(flowId, title, description, fileBuffer, fileName);
 
     return reply.status(201).send(log);
   } catch (err: any) {
-    if (err instanceof z.ZodError) {
-      return reply.status(400).send({ error: 'Validation error', details: err.errors });
-    }
     return reply.status(500).send({ error: err.message });
   }
 });

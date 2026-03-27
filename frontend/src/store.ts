@@ -19,7 +19,7 @@ interface AppState {
 
   // Execute
   executing: boolean;
-  executeFlow: (title: string, description: string) => Promise<FlowLog | null>;
+  executeFlow: (title: string, description: string, file: File) => Promise<FlowLog | null>;
 
   // Replay
   replayingFlowId: string | null;
@@ -56,10 +56,10 @@ const useStore = create<AppState>((set, get) => ({
   },
 
   executing: false,
-  executeFlow: async (title, description) => {
+  executeFlow: async (title, description, file) => {
     set({ executing: true });
     try {
-      const flow = await api.executeFlow(title, description);
+      const flow = await api.executeFlow(title, description, file);
       set({ executing: false });
       get().addToast(
         flow.status === 'completed' ? 'success' : 'info',
