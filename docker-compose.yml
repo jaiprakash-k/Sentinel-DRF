@@ -1,0 +1,137 @@
+version: "3.9"
+
+networks:
+  internal_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:
+
+services:
+  # ── Reverse Proxy ──────────────────────────────────────────
+  traefik:
+    image: traefik:2.11
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal_net
+
+  # ── PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel_pass
+      POSTGRES_DB: sentinel_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./backend/metadata-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal_net
+
+  # ── Redis ──────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal_net
+
+  # ── MinIO ──────────────────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-01-11T07-46-16Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal_net
+
+  # ── Replay Engine ──────────────────────────────────────────
+  replay-engine:
+    build: ./backend/replay-engine
+    environment:
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+      METADATA_SERVICE_URL: http://metadata-service:3002
+      FILE_SERVICE_URL: http://file-service:3003
+    depends_on:
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.replay-engine.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.replay-engine.entrypoints=web"
+      - "traefik.http.services.replay-engine.loadbalancer.server.port=3001"
+      - "traefik.http.middlewares.replay-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.replay-engine.middlewares=replay-strip"
+    networks:
+      - internal_net
+
+  # ── Metadata Service ───────────────────────────────────────
+  metadata-service:
+    build: ./backend/metadata-service
+    environment:
+      PORT: 3002
+      DATABASE_URL: postgresql://sentinel:sentinel_pass@postgres:5432/sentinel_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+  # ── File Service ───────────────────────────────────────────
+  file-service:
+    build: ./backend/file-service
+    environment:
+      PORT: 3003
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: sentinel-files
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+  # ── Frontend ───────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    networks:
+      - internal_net
