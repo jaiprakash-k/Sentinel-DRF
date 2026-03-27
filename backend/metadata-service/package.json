@@ -1,0 +1,23 @@
+{
+  "name": "metadata-service",
+  "version": "1.0.0",
+  "description": "Metadata Service for Sentinel DRF",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "@fastify/cors": "^9.0.1",
+    "pg": "^8.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "@types/node": "^20.14.10",
+    "@types/pg": "^8.11.6",
+    "ts-node": "^10.9.2"
+  }
+}
