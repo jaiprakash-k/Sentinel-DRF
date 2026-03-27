@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { z } from 'zod';
 
+import multipart from '@fastify/multipart';
+
 // ── Config ──────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -235,7 +237,7 @@ async function replayFlow(flowId: string): Promise<FlowLog | null> {
 const app = Fastify({ logger: true });
 
 app.register(cors, { origin: true });
-app.register(require('@fastify/multipart'), {
+app.register(multipart, {
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB
   },
@@ -247,7 +249,7 @@ app.get('/health', async () => ({ status: 'ok', service: 'replay-engine' }));
 // Execute a new flow (file upload + metadata)
 app.post('/flows/execute', async (request, reply) => {
   try {
-    const data = await request.file();
+    const data = await (request as any).file();
     if (!data) {
       return reply.status(400).send({ error: 'No file uploaded' });
     }
