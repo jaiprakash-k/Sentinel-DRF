@@ -13,6 +13,16 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+// ── Status Badge ────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return (
+    <span className={`badge badge--${status}`}>
+      {label}
+    </span>
+  );
+}
+
 // ── Execute Flow Panel ──────────────────────────────────────
 function ExecutePanel() {
   const { executing, executeFlow } = useStore();
@@ -28,9 +38,10 @@ function ExecutePanel() {
   };
 
   return (
-    <div className="card card--glass">
+    <div className="card">
       <div className="card__header">
-        <h2 className="card__title">⚡ Execute New Flow</h2>
+        <h2>Execute New Flow</h2>
+        <p className="text-quiet">Initiate a deterministic execution sequence with logging.</p>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -48,37 +59,38 @@ function ExecutePanel() {
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="flow-desc">Description</label>
+          <label className="form-label" htmlFor="flow-desc">Description (Optional)</label>
           <textarea
             id="flow-desc"
             className="form-textarea"
-            placeholder="Describe the flow execution context…"
+            placeholder="Execution context and metadata…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            rows={3}
           />
         </div>
 
-        <div className="dropzone" style={{ marginBottom: '1.25rem' }}>
-          <div className="dropzone__icon">📂</div>
+        <div className="dropzone" style={{ marginBottom: '2rem' }}>
+          <div className="dropzone__icon">📄</div>
           <div className="dropzone__text">
-            Drop a file here or <span className="dropzone__highlight">click to browse</span>
+            Drop context files or <span style={{ color: 'var(--accent-secondary)', fontWeight: 600 }}>browse</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            File will be uploaded to MinIO via File Service
-          </div>
+          <p style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.6 }}>
+            Files are stored deterministically for replay availability
+          </p>
         </div>
 
         <button
-          className="btn btn--primary btn--lg btn--full"
+          className="btn btn--primary btn--full"
           type="submit"
           disabled={executing || !title.trim()}
         >
           {executing ? (
             <>
-              <span className="spinner" /> Executing Flow…
+              <span className="spinner" /> Executing…
             </>
           ) : (
-            <>🚀 Execute Flow</>
+            <>Execute Flow</>
           )}
         </button>
       </form>
@@ -92,27 +104,19 @@ function FlowEntry({ flow }: { flow: FlowLog }) {
   const isExpanded = expandedFlowId === flow.flowId;
   const isReplaying = replayingFlowId === flow.flowId;
 
-  const statusClass = `badge--${flow.status}`;
-
   return (
     <div
       className={`flow-entry ${isExpanded ? 'flow-entry--expanded' : ''}`}
       onClick={() => setExpandedFlowId(isExpanded ? null : flow.flowId)}
     >
       <div className="flow-entry__header">
-        <div>
-          <div className="flow-entry__id">{flow.flowId}</div>
+        <div style={{ flex: 1 }}>
+          <div className="flow-entry__id">{flow.flowId.slice(0, 18)}...</div>
           <div className="flow-entry__meta">
-            <span className={`badge ${statusClass}`}>
-              {flow.status === 'running' && '⏳'}
-              {flow.status === 'completed' && '✓'}
-              {flow.status === 'failed' && '✗'}
-              {flow.status === 'replaying' && '🔁'}
-              {' '}{flow.status}
-            </span>
+            <StatusBadge status={flow.status} />
             {flow.replayCount > 0 && (
-              <span className="badge badge--replaying" style={{ animation: 'none' }}>
-                🔁 {flow.replayCount} replay{flow.replayCount > 1 ? 's' : ''}
+              <span className="badge badge--replaying">
+                {flow.replayCount} Replay{flow.replayCount > 1 ? 's' : ''}
               </span>
             )}
             <span className="flow-entry__time">{timeAgo(flow.createdAt)}</span>
@@ -128,44 +132,31 @@ function FlowEntry({ flow }: { flow: FlowLog }) {
             }}
             disabled={isReplaying}
           >
-            {isReplaying ? (
-              <>
-                <span className="spinner" /> Replaying…
-              </>
-            ) : (
-              <>🔁 Replay</>
-            )}
+            {isReplaying ? <span className="spinner" /> : 'Replay'}
           </button>
         )}
       </div>
 
-      {/* Steps Timeline */}
       {isExpanded && flow.steps.length > 0 && (
         <div className="steps-timeline">
-          <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Execution Steps
+          <h4 style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Tracing Pipeline
           </h4>
           {flow.steps.map((step, i) => (
             <div className="step-item" key={i}>
-              <div className={`step-dot step-dot--${step.status}`}>
-                {step.status === 'success' ? '✓' : '✗'}
-              </div>
+              <div className={`step-dot step-dot--${step.status}`} />
               <div className="step-info">
                 <div className="step-name">{step.stepName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>
-                {step.error && (
+                {step.error ? (
                   <div className="step-detail" style={{ color: 'var(--accent-danger)' }}>
-                    Error: {step.error}
+                    {step.error}
                   </div>
-                )}
-                {step.result && (
+                ) : step.result ? (
                   <div className="step-detail">
-                    {JSON.stringify(step.result).slice(0, 100)}
-                    {JSON.stringify(step.result).length > 100 ? '…' : ''}
+                    {JSON.stringify(step.result).slice(0, 80)}
+                    {JSON.stringify(step.result).length > 80 ? '…' : ''}
                   </div>
-                )}
-                <div className="step-detail" style={{ opacity: 0.6 }}>
-                  {new Date(step.timestamp).toLocaleTimeString()}
-                </div>
+                ) : null}
               </div>
             </div>
           ))}
@@ -175,7 +166,7 @@ function FlowEntry({ flow }: { flow: FlowLog }) {
   );
 }
 
-// ── Logs Panel ──────────────────────────────────────────────
+// ── Panels ──────────────────────────────────────────────────
 function LogsPanel() {
   const { flows, loading, fetchFlows } = useStore();
 
@@ -185,59 +176,50 @@ function LogsPanel() {
     return () => clearInterval(interval);
   }, [fetchFlows]);
 
-  const totalFlows = flows.length;
-  const completedFlows = flows.filter(f => f.status === 'completed').length;
-  const failedFlows = flows.filter(f => f.status === 'failed').length;
-  const replayedFlows = flows.filter(f => f.replayCount > 0).length;
+  const stats = {
+    total: flows.length,
+    completed: flows.filter(f => f.status === 'completed').length,
+    failed: flows.filter(f => f.status === 'failed').length,
+    replayed: flows.filter(f => f.replayCount > 0).length,
+  };
 
   return (
     <div>
-      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-card__value">{totalFlows}</div>
-          <div className="stat-card__label">Total Flows</div>
+          <div className="stat-card__value">{stats.total}</div>
+          <div className="stat-card__label">Total</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {completedFlows}
-          </div>
+          <div className="stat-card__value" style={{ color: 'var(--accent-success)' }}>{stats.completed}</div>
           <div className="stat-card__label">Completed</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value" style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {failedFlows}
-          </div>
+          <div className="stat-card__value" style={{ color: 'var(--accent-danger)' }}>{stats.failed}</div>
           <div className="stat-card__label">Failed</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value" style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {replayedFlows}
-          </div>
+          <div className="stat-card__value" style={{ color: 'var(--accent-primary)' }}>{stats.replayed}</div>
           <div className="stat-card__label">Replayed</div>
         </div>
       </div>
 
-      {/* Flow List */}
-      <div className="card card--glass">
-        <div className="card__header">
-          <h2 className="card__title">📋 Execution Logs</h2>
-          <button className="btn btn--outline btn--sm" onClick={fetchFlows} disabled={loading}>
-            {loading ? <span className="spinner" /> : '↻'} Refresh
+      <div className="card">
+        <div className="card__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>Execution Logs</h2>
+          <button className="btn btn--outline" onClick={fetchFlows} disabled={loading}>
+            {loading ? <span className="spinner" /> : 'Refresh'}
           </button>
         </div>
 
         {flows.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">📭</div>
-            <div className="empty-state__text">No execution logs yet</div>
-            <div className="empty-state__sub">Execute a flow to see entries here</div>
+            <div className="empty-state__text">No flows recorded.</div>
+            <p className="text-quiet">Execute your first flow to see traces here.</p>
           </div>
         ) : (
           <div className="flow-list">
-            {flows.map(flow => (
-              <FlowEntry key={flow.flowId} flow={flow} />
-            ))}
+            {flows.map(flow => <FlowEntry key={flow.flowId} flow={flow} />)}
           </div>
         )}
       </div>
@@ -245,7 +227,6 @@ function LogsPanel() {
   );
 }
 
-// ── Replay Panel ────────────────────────────────────────────
 function ReplayPanel() {
   const { flows, queueInfo, fetchQueueInfo, processQueue, fetchFlows } = useStore();
   const [processing, setProcessing] = useState(false);
@@ -270,49 +251,36 @@ function ReplayPanel() {
 
   return (
     <div>
-      {/* Queue Panel */}
       <div className="queue-panel">
         <div className="queue-panel__info">
           <div className="queue-panel__icon">🔁</div>
-          <div>
-            <div className="queue-panel__text">
-              Replay Queue: <span className="queue-panel__count">{queueInfo.queueSize}</span> pending
-            </div>
+          <div className="queue-panel__text">
+            Queue: <span className="queue-panel__count">{queueInfo.queueSize}</span> pending
           </div>
         </div>
         <button
-          className="btn btn--replay btn--sm"
+          className="btn btn--primary btn--sm"
           onClick={handleProcessQueue}
           disabled={processing || queueInfo.queueSize === 0}
         >
-          {processing ? (
-            <>
-              <span className="spinner" /> Processing…
-            </>
-          ) : (
-            <>⚡ Process Queue</>
-          )}
+          {processing ? <span className="spinner" /> : 'Process Queue'}
         </button>
       </div>
 
-      {/* Failed Flows */}
-      <div className="card card--glass">
+      <div className="card">
         <div className="card__header">
-          <h2 className="card__title">🔴 Failed Flows</h2>
-          <span className="badge badge--failed">{failedFlows.length} failed</span>
+          <h2>Failed Recoveries</h2>
+          <p className="text-quiet">Flows requiring manual or queue-based replay.</p>
         </div>
 
         {failedFlows.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state__icon">🎉</div>
-            <div className="empty-state__text">No failed flows</div>
-            <div className="empty-state__sub">All flows have completed successfully</div>
+            <div className="empty-state__text">Reliability intact.</div>
+            <p className="text-quiet">No failed flows detected in the system.</p>
           </div>
         ) : (
           <div className="flow-list">
-            {failedFlows.map(flow => (
-              <FlowEntry key={flow.flowId} flow={flow} />
-            ))}
+            {failedFlows.map(flow => <FlowEntry key={flow.flowId} flow={flow} />)}
           </div>
         )}
       </div>
@@ -320,21 +288,13 @@ function ReplayPanel() {
   );
 }
 
-// ── Toast Container ─────────────────────────────────────────
+// ── Toasts ──────────────────────────────────────────────────
 function Toasts() {
   const { toasts, removeToast } = useStore();
   return (
     <>
-      {toasts.map((toast, i) => (
-        <div
-          key={toast.id}
-          className={`toast toast--${toast.type}`}
-          style={{ bottom: `${2 + i * 4}rem` }}
-          onClick={() => removeToast(toast.id)}
-        >
-          {toast.type === 'success' && '✓ '}
-          {toast.type === 'error' && '✗ '}
-          {toast.type === 'info' && 'ℹ '}
+      {toasts.map((toast) => (
+        <div key={toast.id} className="toast" onClick={() => removeToast(toast.id)}>
           {toast.message}
         </div>
       ))}
@@ -355,37 +315,27 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Header */}
       <header className="app-header">
-        <div className="app-header__logo">
-          <div className="app-header__icon">🛡️</div>
-          <div>
-            <div className="app-header__title">Sentinel DRF</div>
-            <div className="app-header__subtitle">Deterministic Replay Fabric</div>
-          </div>
+        <div>
+          <h1 className="app-header__title">Sentinel DRF</h1>
+          <p className="app-header__subtitle">Deterministic Replay Fabric</p>
         </div>
-        <div className="app-header__status">
-          <span className="status-dot" />
-          System Online
-        </div>
+        <div className="app-header__icon">🛡️</div>
       </header>
 
-      {/* Navigation Tabs */}
       <nav className="nav-tabs">
         <button
           className={`nav-tab ${activeTab === 'execute' ? 'nav-tab--active' : ''}`}
           onClick={() => setActiveTab('execute')}
         >
-          ⚡ Execute
+          Execute
         </button>
         <button
           className={`nav-tab ${activeTab === 'logs' ? 'nav-tab--active' : ''}`}
           onClick={() => setActiveTab('logs')}
         >
-          📋 Logs
-          {flows.length > 0 && (
-            <span className="nav-tab__badge">{flows.length}</span>
-          )}
+          Logs
+          {flows.length > 0 && <span className="nav-tab__badge">{flows.length}</span>}
         </button>
         <button
           className={`nav-tab ${activeTab === 'replay' ? 'nav-tab--active' : ''}`}
