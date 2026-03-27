@@ -1,0 +1,27 @@
+{
+  "name": "replay-engine",
+  "version": "1.0.0",
+  "description": "Deterministic Replay Engine for Sentinel DRF",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "@fastify/cors": "^9.0.1",
+    "@fastify/multipart": "^8.3.0",
+    "ioredis": "^5.4.1",
+    "axios": "^1.7.2",
+    "zod": "^3.23.8",
+    "uuid": "^9.0.1",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "@types/node": "^20.14.10",
+    "@types/uuid": "^9.0.8",
+    "ts-node": "^10.9.2"
+  }
+}
